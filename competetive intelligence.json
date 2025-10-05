@@ -1,0 +1,318 @@
+{
+  "name": "competetive intelligence",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1fPEgpw_3MbMj89QK0jozAnnlHTYHiGm0eOpEw5fqQoA",
+          "mode": "list",
+          "cachedResultName": "competitive_intelligence_sample1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1fPEgpw_3MbMj89QK0jozAnnlHTYHiGm0eOpEw5fqQoA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1060507856,
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1fPEgpw_3MbMj89QK0jozAnnlHTYHiGm0eOpEw5fqQoA/edit#gid=1060507856"
+        },
+        "event": "rowAdded",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "012be04d-d1c3-453f-81f0-09480d819778",
+      "name": "Google Sheets Trigger",
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "mMcmoTt9BXlLvfJE",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the base URL from input\nlet baseUrl = $input.first().json[\"competitor url\"];\nbaseUrl = baseUrl.replace(/\\/$/, ''); // Strip trailing slash\n\n// Most important pages + strategic fallbacks\nconst paths = [\n  \"/\",             // Homepage\n  \"/pricing\",       // Primary pricing\n  \"/plans\",         // Alt pricing\n  \"/subscriptions\", // Alt pricing\n  \"/get-started\",   // CTA + pricing sometimes\n\n  \"/features\",      // Value prop overview\n  \"/solutions\",     // All features\n  \"/why-us\",        // Alt positioning\n\n  \"/product\",       // Main product\n  \"/products\",      // Multi-product layout\n\n  \"/about\",         // Brand/mission\n  \"/testimonials\",  // Social proof\n  \"/compare\",       // Us vs them\n  \"/faq\",           // Objection handling\n];\n\n// Build final URLs to scrape\nconst urlsToScrape = paths.map(path => {\n  return { json: { url: `${baseUrl}/${path}` } };\n});\n\nreturn urlsToScrape;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "78301210-054e-4369-9f2b-82869a4ba8dc",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "14ba9e01-b84e-4493-b64f-c2e8492c11b2",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "operation": "scrape",
+        "url": "={{ $json.url }}",
+        "requestOptions": {}
+      },
+      "type": "@mendable/n8n-nodes-firecrawl.firecrawl",
+      "typeVersion": 1,
+      "position": [
+        640,
+        160
+      ],
+      "id": "d680b6f3-4e41-418a-a936-d978fc5fa356",
+      "name": "Scrape a url and get its content",
+      "credentials": {
+        "firecrawlApi": {
+          "id": "RTWbXKHyFxZfLJU3",
+          "name": "Firecrawl account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all the scraped page items from Firecrawl\nconst items = $input.all();\n\n// Extract markdown safely and join with a separator\nconst combinedMarkdown = items\n  .map(item => {\n    const markdown = item.json?.data?.markdown;\n    return markdown ? markdown : ''; // Skip or empty if missing\n  })\n  .filter(Boolean) // remove empty entries\n  .join('\\n\\n--- PAGE BREAK ---\\n\\n');\n\n// Return a single item with the combined content\nreturn [{ json: { combined_markdown: combinedMarkdown } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        32
+      ],
+      "id": "f442233e-5538-4236-acc4-f1c93eb139ae",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=you are an expert business analyst. Read the text scraped from a company's main website page and create a concise summary.\n\nfocus on identifying\n-The company's main products or services.\n-Their pricing model (if available)\n-Their primary sales pitch or value proposition.\n\noutput ONLY the summary\n\nWEBSITE TEXT:\n{{ $json.combined_markdown }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        832,
+        32
+      ],
+      "id": "e0e48a98-b791-4622-afbb-ab8bce6a02a7",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJq3extgDsumSxE",
+          "name": "OpenAi account 13"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a world-class marketing and strategy analyst. You have been given a summary of a competitor’s business.\n\nYour task is to write a detailed strategic analysis report. The report must include the following sections:\n1. **Likely Marketing Strategy:** Based on the summary, what is their go-to-market strategy? (e.g., product-led growth, content marketing, direct sales).\n2. **Target Audience:** Who are they trying to sell to? (e.g., small businesses, enterprise tech companies, individual creators).\n3. **Biggest Strengths & Weaknesses:** What are their clear advantages, and what potential weaknesses or market gaps can you identify?\n\nGenerate this report based on the summary below.\n\nCOMPETITOR SUMMARY:\n{{ $json.message.content }}\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1184,
+        32
+      ],
+      "id": "fe5bd14f-0d47-4e06-88d4-133b467b4500",
+      "name": "Message a model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "dwdVw4u5Jqs8JsNR",
+          "name": "OpenAi account 14"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "rlrh0003@gmail.com",
+        "subject": "=Strategic Report for {{ $('Google Sheets Trigger').first().json['competitor url'] }}",
+        "message": "={{ $json.data }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1728,
+        32
+      ],
+      "id": "ceee56a5-06f2-485c-b928-216429ea31d8",
+      "name": "Send a message",
+      "webhookId": "b0ced5e6-432b-4dc6-a4db-8a3cdc2e5387",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "vkcsJwnuMj0zy7j4",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "markdownToHtml",
+        "markdown": "={{ $json.message.content }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [
+        1536,
+        32
+      ],
+      "id": "b92dd8f4-53cc-482a-9018-30f0664c4364",
+      "name": "Markdown"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Scrape a url and get its content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape a url and get its content": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "43abdcf7-8c03-4e81-b056-5969b4a2f4eb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "269702b489d388db6e402324fb04fe62d4b9dba182db326a409538f202b21236"
+  },
+  "id": "ponRn8Fe2nk7Bpv2",
+  "tags": []
+}
